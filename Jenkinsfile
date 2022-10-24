@@ -1,17 +1,58 @@
-environment {
-    region = "us-east-1"
-    docker_repo_uri = "547850580937.dkr.ecr.us-east-1.amazonaws.com/test-app"
-    task_def_arn = "arn:aws:ecs:us-east-1:xxxxxxxxxxxx:task-definition/first-run-task-definition"
-    cluster = "cluster-uno"
-    exec_role_arn = "arn:aws:iam::547850580937:instance-profile/jenkins"
-}
-stage('Deploy') {
-    steps {
-        // Override image field in taskdef file
-        sh "sed -i 's|{{image}}|${docker_repo_uri}:${commit_id}|' taskdef.json"
-        // Create a new task definition revision
-        sh "aws ecs register-task-definition --execution-role-arn ${exec_role_arn} --cli-input-json file://taskdef.json --region ${region}"
-        // Update service on Fargate
-        sh "aws ecs update-service --cluster ${cluster} --service sample-app-service --task-definition ${task_def_arn} --region ${region}"
+pipeline {
+    agent any
+    environment {
+        IMAGE_REPO_NAME="testa-app"
+        //REPLACE XXX WITH YOUR STUDENT NUMBER
+       // IMAGE_TAG= "std53"        
+        REPOSITORY_URI = "547850580937.dkr.ecr.us-east-1.amazonaws.com/test-app"
+        AWS_DEFAULT_REGION = "us-east-1"
+    }
+   
+    stages {
+    
+            stage('Logging into AWS ECR') {
+            steps {
+                script {
+                sh """aws ecr-public get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI} """
+                }
+                 
+            }
+        } 
+    
+    stage('Clone repository') { 
+            steps { 
+                script{
+                checkout scm
+                }
+            }
+        }  
+  
+    // Building Docker images
+    stage('Building image') {
+      steps{
+        script {
+          dockerImage = docker.build "${IMAGE_REPO_NAME}:${IMAGE_TAG}-${env.BUILD_NUMBER}"
+        }
+      }
+    }
+   
+    // Uploading Docker images into AWS ECR
+    stage('Pushing to ECR') {
+     steps{  
+         script {
+                sh """docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG}-${env.BUILD_NUMBER} ${REPOSITORY_URI}:$IMAGE_TAG-${env.BUILD_NUMBER}"""
+                sh """docker push ${REPOSITORY_URI}:${IMAGE_TAG}-${env.BUILD_NUMBER}"""
+         }
+        }
+      }
+      stage('Deploy'){
+            steps {
+                 sh 'sed -i "s/<TAG>/${IMAGE_TAG}-${BUILD_NUMBER}/" deployment.yml'
+                 sh 'kubectl apply -f deployment.yml'
+                 /*
+                 //If you are sure this deployment is already running and want to change the container image version, then you can use:
+                 sh 'kubectl set image deployments/dvwa 371571523880.dkr.ecr.us-east-2.amazonaws.com/dvwaxperts:${BUILD_NUMBER}'*/
+            }
+        } 
     }
 }
