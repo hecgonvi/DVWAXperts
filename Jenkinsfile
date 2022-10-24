@@ -2,7 +2,7 @@ environment {
     region = "us-east-1"
     docker_repo_uri = "547850580937.dkr.ecr.us-east-1.amazonaws.com/test-app"
     task_def_arn = "arn:aws:ecs:us-east-1:xxxxxxxxxxxx:task-definition/first-run-task-definition"
-    cluster = "default"
+    cluster = "cluster-uno"
     exec_role_arn = "arn:aws:iam::547850580937:instance-profile/jenkins"
 }
 stages {
